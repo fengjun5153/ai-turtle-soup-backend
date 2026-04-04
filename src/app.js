@@ -7,15 +7,32 @@ const chatRouter = require("./routes/chat");
 const stories = require("../data/stories.json");
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+const PORT = Number(process.env.PORT) || 3001;
+// 公网部署必须监听 0.0.0.0，否则容器外（网关）连不上进程
+const HOST = process.env.HOST || "0.0.0.0";
+
+// 反向代理后拿到真实协议/主机（Zeabur / Railway / Nginx 等）
+app.set("trust proxy", 1);
+
+// 支持多个前端域名：CLIENT_ORIGIN=https://a.com,https://b.com
+const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((s) => s.trim().replace(/\/$/, ""))
+  .filter(Boolean);
 
 app.use(
   cors({
-    origin: CLIENT_ORIGIN,
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      const normalized = origin.replace(/\/$/, "");
+      if (allowedOrigins.includes(normalized)) return callback(null, true);
+      console.warn(`[cors] blocked origin: ${origin}`);
+      return callback(null, false);
+    },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
+    optionsSuccessStatus: 204,
   })
 );
 
@@ -49,10 +66,10 @@ app.get("/", (_req, res) => {
 
 const server = http.createServer(app);
 
-server.listen(PORT, () => {
-  const host = `http://localhost:${PORT}`;
+server.listen(PORT, HOST, () => {
   console.log(`
-  Server is running at ${host}
+  Server listening on ${HOST}:${PORT}
+  Allowed CORS origins: ${allowedOrigins.join(", ") || "(none)"}
 
   GET  /            -> 服务信息
   GET  /api/test    -> 测试
