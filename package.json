@@ -1,6 +1,6 @@
 {
   "name": "ai-turtle-soup-backend",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "",
   "main": "src/app.js",
   "scripts": {

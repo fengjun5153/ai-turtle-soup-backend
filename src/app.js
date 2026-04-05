@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 /** 改代码后 bump，在 Railway 日志里核对是否拉到新镜像 */
-const DEPLOY_TAG = "boot-2026-04-05-v4-railway-deploy";
+const DEPLOY_TAG = "boot-2026-04-05-v5-railway-port-hint";
 console.log(`[boot] DEPLOY_TAG=${DEPLOY_TAG}`);
 
 const http = require("http");
@@ -34,6 +34,12 @@ console.log(
   process.env.PORT === undefined ? "(unset)" : JSON.stringify(process.env.PORT),
   HOST
 );
+
+if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID) {
+  console.warn(
+    `[boot] Railway: Settings → Networking 里公网入口的「Port / Target」必须是 ${PORT}（与日志里 PORT 一致）。若写成 3001 而应用在 ${PORT} 监听，会出现 502 / connection refused。`
+  );
+}
 
 const chatRouter = require("./routes/chat");
 const stories = require("../data/stories.json");
