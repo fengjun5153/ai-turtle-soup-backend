@@ -3,7 +3,6 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "npm start"
-healthcheckPath = "/health"
-healthcheckTimeout = 300
+# 直接跑 Node，少一层 npm；不设 healthcheckPath，避免 HTTP 探活误判导致一直 502
+startCommand = "node src/app.js"
 restartPolicyType = "ON_FAILURE"

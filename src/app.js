@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 /** 改代码后 bump，在 Railway 日志里核对是否拉到新镜像 */
-const DEPLOY_TAG = "boot-2026-04-05-v2";
+const DEPLOY_TAG = "boot-2026-04-05-v4-railway-deploy";
 console.log(`[boot] DEPLOY_TAG=${DEPLOY_TAG}`);
 
 const http = require("http");
@@ -43,9 +43,20 @@ const app = express();
 // 反向代理后拿到真实协议/主机（Zeabur / Railway / Nginx 等）
 app.set("trust proxy", 1);
 
-// 平台健康检查：放在 CORS 之前，避免预检/配置问题影响探活
-app.get("/health", (_req, res) => {
-  res.status(200).type("text/plain").send("ok");
+// 平台健康检查：放在 CORS 之前。Railway 等常用 HEAD 探活，仅 app.get 不会响应 HEAD → 404 → 502
+function healthOk(_req, res) {
+  res.status(200).set("Cache-Control", "no-store");
+}
+app.get("/health", (req, res) => {
+  healthOk(req, res);
+  res.type("text/plain").send("ok");
+});
+app.head("/health", (req, res) => {
+  healthOk(req, res);
+  res.end();
+});
+app.options("/health", (_req, res) => {
+  res.sendStatus(204);
 });
 
 // 支持多个前端域名：CLIENT_ORIGIN=https://a.com,https://b.com
@@ -100,12 +111,17 @@ app.get("/", (_req, res) => {
 
 const server = http.createServer(app);
 
+server.on("listening", () => {
+  const addr = server.address();
+  console.log("[boot] server.address() =", addr);
+});
+
 server.listen(PORT, HOST, () => {
   console.log(`
   Server listening on ${HOST}:${PORT}
   Allowed CORS origins: ${allowedOrigins.join(", ") || "(none)"}
 
-  GET  /health      -> 健康检查（Railway 探活）
+  GET/HEAD /health  -> 健康检查（Railway 常用 HEAD）
   GET  /            -> 服务信息
   GET  /api/test    -> 测试
   GET  /api/stories -> 题库列表（不含汤底）
