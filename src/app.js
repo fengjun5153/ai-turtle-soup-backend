@@ -1,5 +1,9 @@
 require("dotenv").config();
 
+/** 改代码后 bump，在 Railway 日志里核对是否拉到新镜像 */
+const DEPLOY_TAG = "boot-2026-04-05-v2";
+console.log(`[boot] DEPLOY_TAG=${DEPLOY_TAG}`);
+
 const http = require("http");
 const express = require("express");
 const cors = require("cors");
