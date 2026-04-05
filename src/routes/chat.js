@@ -10,6 +10,29 @@ const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 // Load built-in stories (truth lives server-side only)
 const stories = require(path.join(__dirname, "../../data/stories.json"));
 
+/**
+ * Align frontend ids with data/stories.json (e.g. builtin-001 → builtin-n01).
+ */
+function normalizeStoryId(id) {
+  if (id == null) return null;
+  const s = String(id).trim();
+  if (!s) return null;
+
+  let m = s.match(/^builtin-0*(\d+)$/i);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n >= 1 && n <= 99) return `builtin-n${String(n).padStart(2, "0")}`;
+  }
+
+  m = s.match(/^builtin-n0*(\d+)$/i);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n >= 1 && n <= 99) return `builtin-n${String(n).padStart(2, "0")}`;
+  }
+
+  return s;
+}
+
 function getClient() {
   if (!DEEPSEEK_API_KEY) {
     throw new Error("DEEPSEEK_API_KEY is not configured");
@@ -23,12 +46,19 @@ function getClient() {
  */
 function findStory(storyId, surface) {
   if (storyId) {
-    const match = stories.find((s) => s.id === storyId);
-    if (match) {
-      console.log(`[chat] story matched by id: ${storyId}`);
-      return match;
+    const raw = String(storyId).trim();
+    const normalized = normalizeStoryId(raw);
+    const idCandidates = [raw, normalized].filter(
+      (v, i, a) => v && a.indexOf(v) === i
+    );
+    for (const id of idCandidates) {
+      const match = stories.find((s) => s.id === id);
+      if (match) {
+        console.log(`[chat] story matched by id: ${id}${id !== raw ? ` (from ${raw})` : ""}`);
+        return match;
+      }
     }
-    console.log(`[chat] no story found for id: ${storyId}`);
+    console.log(`[chat] no story found for id(s): ${idCandidates.join(", ")}`);
   }
 
   if (surface) {
@@ -113,9 +143,10 @@ function parseAIResponse(rawText) {
 router.post("/", async (req, res) => {
   try {
     const { question, storyId, story } = req.body;
+    const resolvedId = storyId ?? story?.id ?? story?.storyId;
 
     console.log("[chat] ← request:", JSON.stringify({
-      storyId: storyId || story?.id || "(none)",
+      storyId: resolvedId || "(none)",
       surface: story?.surface?.slice(0, 30) || "(none)",
       question,
     }));
@@ -128,18 +159,17 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const resolvedStory = findStory(
-      storyId || story?.id,
-      story?.surface
-    );
+    const resolvedStory = findStory(resolvedId, story?.surface);
 
     if (!resolvedStory) {
       console.log("[chat] ✗ rejected: story not found");
-      return res.status(404).json({
+      // 400：业务上 storyId 无效；避免与「路由不存在」的 HTTP 404 混淆（网关日志里都是 404）
+      return res.status(400).json({
         ok: false,
         error: {
           code: "STORY_NOT_FOUND",
-          message: "Story not found. Please provide a valid storyId.",
+          message:
+            "Story not found. Send storyId from GET /api/stories (e.g. builtin-n02), or include story.surface for fuzzy match.",
         },
       });
     }
