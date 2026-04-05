@@ -99,7 +99,7 @@ app.use((req, _res, next) => {
 app.use("/api/chat", chatRouter);
 
 app.get("/api/stories", (_req, res) => {
-  const safeList = stories.map(({ truth, ...meta }) => meta);
+  const safeList = stories.map(({ truth, truthEn, ...meta }) => meta);
   res.json({ ok: true, data: safeList });
 });
 
